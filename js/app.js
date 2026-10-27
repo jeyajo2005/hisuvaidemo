@@ -20,6 +20,7 @@
     bag: '<svg viewBox="0 0 24 24"><path d="M5.5 8h13l-1 12h-11z"/><path d="M9 8V6.5a3 3 0 016 0V8"/></svg>',
     heart: '<svg viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0112 7.6a4.3 4.3 0 017.5 2.2C19.5 15.4 12 20 12 20z"/></svg>',
     arrow: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+    arrowLeft: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>',
     fb: '<svg viewBox="0 0 24 24"><path d="M14 8.5V7c0-.7.3-1 1-1h2V3h-3a4 4 0 00-4 4v1.5H7V12h3v9h4v-9h2.7l.5-3.5z"/></svg>',
     yt: '<svg viewBox="0 0 24 24"><path d="M21.6 7.2a2.5 2.5 0 00-1.8-1.8C18.3 5 12 5 12 5s-6.3 0-7.8.4A2.5 2.5 0 002.4 7.2C2 8.7 2 12 2 12s0 3.3.4 4.8a2.5 2.5 0 001.8 1.8C5.7 19 12 19 12 19s6.3 0 7.8-.4a2.5 2.5 0 001.8-1.8c.4-1.5.4-4.8.4-4.8s0-3.3-.4-4.8zM10 15V9l5.2 3z"/></svg>',
     ig: '<svg viewBox="0 0 24 24"><path d="M7.5 3h9A4.5 4.5 0 0121 7.5v9a4.5 4.5 0 01-4.5 4.5h-9A4.5 4.5 0 013 16.5v-9A4.5 4.5 0 017.5 3zm0 1.8A2.7 2.7 0 004.8 7.5v9a2.7 2.7 0 002.7 2.7h9a2.7 2.7 0 002.7-2.7v-9a2.7 2.7 0 00-2.7-2.7zM12 7.8a4.2 4.2 0 110 8.4 4.2 4.2 0 010-8.4zm0 1.8a2.4 2.4 0 100 4.8 2.4 2.4 0 000-4.8zm4.6-3.1a1 1 0 110 2 1 1 0 010-2z"/></svg>'
@@ -33,27 +34,29 @@
     clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('on'), 2400);
   }
 
-  /* ---------------- Loader — fast skip, no sky scene ---------- */
+  /* ---------------- Loader — fast skip, non-blocking ---------- */
   function runLoader() {
     const L = $('#loader');
-    if (!L) return;
     const finish = () => {
-      L.classList.add('done');
       document.body.classList.remove('is-loading');
-      $('#hero').classList.add('ready');
-      setTimeout(() => { if (L.parentNode) L.remove(); animateHeroIn(); }, 400);
+      if (L) {
+        L.classList.add('done');
+        L.style.pointerEvents = 'none';
+        setTimeout(() => { if (L.parentNode) L.remove(); }, 300);
+      }
+      const hero = $('#hero');
+      if (hero) hero.classList.add('ready');
+      animateHeroIn();
     };
     if (reduce) { finish(); return; }
-    /* Minimal brand flash — no sky SVG */
-    setTimeout(finish, 1200);
-    L.addEventListener('click', finish);
+    setTimeout(finish, 400);
+    if (L) L.addEventListener('click', finish);
   }
 
   /* ---------------- Hero — cinematic dark style ---------------- */
   let heroI = 0, heroTimer;
   function renderHero() {
     const n = D.hero.length;
-    const imgKeys = ['p1','p2','p3','p4']; /* 4 hero slides → 4 images */
     $('#hero').innerHTML = `
       <div class="hero-dark-bg" aria-hidden="true"></div>
       ${D.hero.map((h, i) => {
@@ -61,6 +64,8 @@
         return `<div class="hero-slide-bg ${i===0?'on':''}" style="background-image:url('js/assets/${img}')" aria-hidden="true"></div>`;
       }).join('')}
       <div class="hero-dim" aria-hidden="true"></div>
+      <button class="hero-nav prev" id="heroPrev" aria-label="Previous slide">${ICON.arrow}</button>
+      <button class="hero-nav next" id="heroNext" aria-label="Next slide">${ICON.arrow}</button>
       <div class="hero-inner wrap">
         <div class="hero-copy-wrap">
           ${D.hero.map((h, i) => `
@@ -68,8 +73,8 @@
               <p class="hero-eye">Powered by sun &middot; Dried by nature</p>
               <h1 class="hero-h">${h.h.map(l=>`<span class="hln"><span>${l}</span></span>`).join('')}</h1>
               <p class="hero-p">${h.p.substring(0, 100)}…</p>
-              <div class="hero-acts">
-                <a class="btn btn-amber" href="#products">Shop now <span class="arr">${ICON.arrow}</span></a>
+              <div class="hero-acts desktop-only">
+                <a class="btn btn-amber hero-shop-btn" href="#featured">Shop now <span class="arr">${ICON.arrow}</span></a>
                 <a class="btn btn-glass" href="#about">Our story ${ICON.arrow}</a>
               </div>
             </div>`).join('')}
@@ -79,11 +84,15 @@
           <div class="stage" id="stage">
             ${D.hero.map((h, i) => {
               const img = D.productImages[h.id] || 'p1.png';
-              return `<div class="hp" data-i="${i}" data-pos="${i}" role="button" tabindex="0" aria-label="View ${byId(h.id).name}">
+              return `<div class="hp" data-i="${i}" data-pos="${i}" role="button" tabindex="0" aria-label="Shop Now · ${byId(h.id).name}">
                 <img src="js/assets/${img}" alt="${byId(h.id).name}" class="hero-pimg" loading="${i===0?'eager':'lazy'}">
               </div>`;
             }).join('')}
           </div>
+        </div>
+        <div class="hero-acts mobile-acts">
+          <a class="btn btn-amber hero-shop-btn" href="#featured">Shop now <span class="arr">${ICON.arrow}</span></a>
+          <a class="btn btn-glass" href="#about">Our story ${ICON.arrow}</a>
         </div>
       </div>
       <div class="hero-pills" aria-hidden="true"><span>100% Natural</span><span>No Preservatives</span><span>Rich in Fibre</span></div>
@@ -105,9 +114,31 @@
       $$('.hp', hero).forEach((e,k) => e.dataset.pos = (k - heroI + n) % n);
     };
     setHero(0);
-    const auto = () => { clearInterval(heroTimer); if (!reduce) heroTimer = setInterval(() => { if (!document.hidden && $('[data-view=home]').classList.contains('active')) setHero(heroI+1); }, 5000); };
+    const auto = () => {
+      clearInterval(heroTimer);
+      if (!reduce) heroTimer = setInterval(() => {
+        const homeV = $('[data-view=home]');
+        const isHome = !homeV || homeV.classList.contains('active');
+        if (!document.hidden && isHome) setHero(heroI + 1);
+      }, 4500);
+    };
     auto();
+
+    const prevB = $('#heroPrev', hero);
+    if (prevB) prevB.onclick = () => { setHero(heroI - 1); auto(); };
+    const nextB = $('#heroNext', hero);
+    if (nextB) nextB.onclick = () => { setHero(heroI + 1); auto(); };
+
+    $$('.hero-shop-btn', hero).forEach(b => {
+      b.onclick = (e) => {
+        e.preventDefault();
+        $('#featured')?.scrollIntoView({ behavior: 'smooth' });
+      };
+    });
+
     $('.hero-dots', hero).addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (b) { setHero(+b.dataset.i); auto(); } });
+    const cue = $('.scroll-cue', hero);
+    if (cue) { cue.style.cursor = 'pointer'; cue.onclick = () => $('#featured').scrollIntoView({ behavior: 'smooth' }); }
     $('#stage').addEventListener('click', e => { const hp = e.target.closest('.hp'); if (!hp) return; if (hp.dataset.pos==='0') openQuick(D.hero[heroI].id); else setHero(+hp.dataset.i); auto(); });
     $('#stage').addEventListener('keydown', e => { if (e.key==='Enter') e.target.click(); });
     let sx = null;
@@ -125,59 +156,83 @@
     const slide = $('.hero-slide.on');
     if (!slide) return;
     const lines = $$('.hln span', slide);
-    const p = $('.hero-p', slide);
-    const acts = $('.hero-acts', slide);
     const right = $('.hero-right');
     const tl = gsap.timeline();
     if (lines.length) tl.from(lines, { yPercent: 110, opacity: 0, stagger: .1, duration: .85, ease: 'power3.out' });
-    if (p) tl.from(p, { y: 18, opacity: 0, duration: .65, ease: 'power2.out' }, '-=0.35');
-    if (acts) tl.from(acts, { y: 14, opacity: 0, duration: .6, ease: 'power2.out' }, '-=0.3');
-    if (right) tl.from(right, { x: 60, opacity: 0, duration: .9, ease: 'power2.out' }, '-=0.7');
-    if (hasST) {
-      gsap.to('.hero-right', { y: -60, ease: 'none', scrollTrigger: { trigger: '#hero', start: 'top top', end: 'bottom top', scrub: 1.2 } });
-    }
+    if (right) tl.from(right, { x: 60, opacity: 0, duration: .9, ease: 'power2.out' }, '-=0.5');
   }
 
   /* ---------------- How to use ---------------- */
   function renderHow() {
+    const howImg = D.productImages['suvai6'] || 'p6.png';
     $('#how').innerHTML = `
       <div class="how-sticky">
-        <div class="how-head"><p class="eyebrow">How to use</p><h2>From pouch to glass in 4 easy steps</h2></div>
+        <div class="how-head">
+          <p class="eyebrow">Traditional Preparation</p>
+          <h2>From pouch to glass in 4 easy steps</h2>
+        </div>
         <div class="how-ring"></div>
-        <div class="how-pouch" id="howPouch">${A.pouch(byId('moringa'))}</div>
-        ${D.steps.map((s, i) => `<article class="step ${s.side}" data-i="${i}"><div class="th">${A.stepArt(s.art)}</div><div><small>STEP ${s.n}</small><h4>${s.t}</h4><p>${s.d}</p></div></article>`).join('')}
+        <div class="how-pouch" id="howPouch"><img src="js/assets/${howImg}" alt="Hi Suvai Health Mix" class="how-pimg"></div>
+        ${D.steps.map((s, i) => `<article class="step ${s.side}" data-i="${i}"><div class="th">${A.stepArt(s.art)}</div><div class="step-content"><small class="step-badge">STEP ${s.n}</small><h4>${s.t}</h4><p>${s.d}</p></div></article>`).join('')}
         <div class="how-bar"><i></i></div>
       </div>`;
   }
-  const TH = [.06, .27, .5, .72];
+  const TH = [.08, .28, .52, .76];
   function updateHow() {
     const sec = $('#how'); if (!sec || !$('[data-view=home]').classList.contains('active')) return;
     const r = sec.getBoundingClientRect();
-    const total = sec.offsetHeight - innerHeight;
-    const flow = innerWidth <= 900;
-    const p = flow ? 0 : Math.min(1, Math.max(0, -r.top / total));
+    const vh = window.innerHeight || 800;
+    const total = sec.offsetHeight - vh;
+    const p = total <= 0 ? 0 : Math.min(1, Math.max(0, -r.top / total));
     sec.style.setProperty('--p', p);
     const pouch = $('#howPouch');
-    if (flow) { pouch.style.setProperty('--rot', '0deg'); pouch.style.setProperty('--sc', 1); return; }
+    if (!pouch) return;
     pouch.style.setProperty('--rot', (-9 + p * 18).toFixed(2) + 'deg');
-    pouch.style.setProperty('--sc', (.9 + Math.sin(p * Math.PI) * .12).toFixed(3));
-    $$('.step', sec).forEach((s, i) => s.classList.toggle('on', p > TH[i]));
-    $('.how-bar i', sec).style.width = (p * 100) + '%';
+    pouch.style.setProperty('--sc', (.92 + Math.sin(p * Math.PI) * .12).toFixed(3));
+    
+    const vw = window.innerWidth || 1200;
+    if (vw <= 860) {
+      // Mobile: reveal the active step card based on current scroll position
+      let activeIdx = 0;
+      if (p >= 0.72) activeIdx = 3;
+      else if (p >= 0.48) activeIdx = 2;
+      else if (p >= 0.24) activeIdx = 1;
+      else activeIdx = 0;
+      $$('.step', sec).forEach((s, i) => s.classList.toggle('on', i === activeIdx));
+    } else {
+      // Desktop: turn on each step as progress crosses threshold
+      $$('.step', sec).forEach((s, i) => s.classList.toggle('on', p > TH[i]));
+    }
+    const bar = $('.how-bar i', sec);
+    if (bar) bar.style.width = (p * 100) + '%';
   }
 
   /* ---------------- Categories ---------------- */
   function renderCats() {
-    const names = { veg: ['carrot', 'beetroot', 'broccoli'], fruit: ['mango', 'amla', 'banana'], super: ['abc', 'moringa', 'curry'] };
-    const heroP = { veg: 'carrot', fruit: 'banana', super: 'abc' };
+    const names = {
+      flour: ['Karuppu Gothumai Flour', 'Navadhaniya Dosa Mix', 'Black Rice Dosa'],
+      health: ['24 Grains Health Mix', 'Sprouted Grain Malt', 'Nutritious Aval'],
+      porridge: ['16 Variety Porridge', 'Heritage Rice Porridge', 'Ancient Tamil Kanji'],
+      aval: ['Karuppu Kavuni Aval', 'Native Black Rice Flakes', 'Instant Healthy Meal']
+    };
+    const catImages = { flour: 'p1.png', health: 'p6.png', porridge: 'p3.png', aval: 'p4.png' };
     $('#cats').innerHTML = `
-      <div class="sec-head reveal"><div><p class="eyebrow">Shop by category</p><h2>Our Top Categories</h2></div><a class="link-arrow" href="#products">View all products ${ICON.arrow}</a></div>
+      <div class="sec-head reveal"><div><p class="eyebrow">Shop by category</p><h2>Our Traditional Categories</h2></div><a class="link-arrow" href="#products">View all products ${ICON.arrow}</a></div>
       <div class="cat-grid">
-        ${D.categories.map((c, i) => `<a class="cat ${c.hue} reveal" style="--d:${i * .12}s" href="#products-${c.key}">
-          <div class="panel"><div class="meta"><h3>${c.name}</h3><p>${names[c.key].map(id => byId(id).name).join(' · ')}</p></div></div>
-          <div class="arch"></div>
-          <div class="cp">${A.pouch(byId(heroP[c.key]))}</div>
-          <span class="go">${ICON.arrow}</span>
-        </a>`).join('')}
+        ${D.categories.map((c, i) => {
+          const img = catImages[c.key] || 'p1.png';
+          const pNames = names[c.key] || ['Traditional Blend', 'Authentic Recipe'];
+          return `<a class="cat ${c.hue} reveal" style="--d:${i * .12}s" href="#products-${c.key}">
+            <div class="panel">
+              <div class="cp"><img src="js/assets/${img}" alt="${c.name}" class="cat-pimg"></div>
+              <div class="meta">
+                <h3>${c.name}</h3>
+                <p>${pNames.join(' · ')}</p>
+              </div>
+            </div>
+            <span class="go">${ICON.arrow}</span>
+          </a>`;
+        }).join('')}
       </div>`;
   }
 
@@ -192,35 +247,43 @@
       </div>
       <div class="p-info">
         <h3 class="p-name">${p.name}</h3>
-        <p class="p-sub">Sun-dried · ${p.weight}</p>
+        <p class="p-sub">${p.weight} · 100% Traditional</p>
         <div class="p-row"><span class="price">${money(p.price)}</span><button class="add" data-add="${p.id}">${ICON.bag}Add to cart</button></div>
       </div>
     </article>`;
   }
   function renderFeatured() {
-    const ids = ['banana', 'carrot', 'beetroot', 'moringa', 'amla', 'abc', 'broccoli', 'mango', 'curry'];
+    const list = D.products;
     $('#featured').innerHTML = `
-      <div class="sec-head reveal"><div><p class="eyebrow">Our best sellers</p><h2>Our Featured Products</h2></div><a class="link-arrow" href="#products">View all products ${ICON.arrow}</a></div>
-      <div class="grid">${ids.map((id, i) => pcard(byId(id), i)).join('')}</div>`;
+      <div class="sec-head reveal"><div><p class="eyebrow">Our best sellers</p><h2>Our Featured Traditional Foods</h2></div><a class="link-arrow" href="#products">View all products ${ICON.arrow}</a></div>
+      <div class="grid">${list.map((p, i) => pcard(p, i)).join('')}</div>`;
   }
   function slideTo(card, s) {
-    // No carousel needed after replacing with static product images.
     return;
   }
 
-  /* ---------------- Showcase (horizontal scroll gallery) ---------------- */
+  /* ---------------- Showcase (Continuous Slow Single-Row Marquee) ---------------- */
   function renderShowcase() {
-    const ids = D.products.map(p => p.id);
+    // Duplicate products for a seamless, continuous infinite loop in a single row
+    const loopList = [...D.products, ...D.products];
     $('#showcase').innerHTML = `
       <div class="showcase-head wrap">
-        <div><p class="eyebrow">The full collection</p><h2 class="serif">Every pouch, a story</h2></div>
-        <p class="showcase-sub">Twelve sun-dried powders — scroll to explore the range.</p>
+        <div>
+          <p class="eyebrow">The full collection</p>
+          <h2 class="serif">Every pouch, a story</h2>
+        </div>
+        <div class="showcase-sub-wrap">
+          <p class="showcase-sub">Traditional health mix & porridge collection — swipe or explore.</p>
+          <div class="showcase-nav-btns">
+            <button type="button" class="s-arr prev" id="scPrev" aria-label="Previous">${ICON.arrowLeft}</button>
+            <button type="button" class="s-arr next" id="scNext" aria-label="Next">${ICON.arrow}</button>
+          </div>
+        </div>
       </div>
       <div class="showcase-pin" id="showcasePin">
         <div class="showcase-track" id="showcaseTrack">
-          ${ids.map((id, i) => {
-            const p = byId(id);
-            const img = D.productImages[id] || 'p1.png';
+          ${loopList.map((p, i) => {
+            const img = D.productImages[p.id] || 'p1.png';
             return `<div class="showcase-card" data-id="${p.id}">
               <div class="showcase-frame">
                 <img src="js/assets/${img}" alt="${p.name}" loading="lazy">
@@ -236,26 +299,106 @@
         </div>
       </div>`;
 
-    /* GSAP pinned horizontal scroll on desktop */
-    if (hasST && !reduce && innerWidth > 1024) {
-      requestAnimationFrame(() => {
-        const track = $('#showcaseTrack');
-        if (!track) return;
-        const scrollDist = Math.max(0, track.scrollWidth - innerWidth + 160);
-        if (scrollDist > 0) {
-          gsap.to(track, {
-            x: -scrollDist, ease: 'none',
-            scrollTrigger: {
-              trigger: '#showcasePin',
-              start: 'top top',
-              end: () => '+=' + scrollDist,
-              scrub: 1, pin: true, anticipatePin: 1,
-              invalidateOnRefresh: true
+    const track = $('#showcaseTrack');
+    const pBtn = $('#scPrev'), nBtn = $('#scNext');
+    if (track) {
+      let isPaused = false;
+      let animId = null;
+      let resumeTimer = null;
+
+      track.addEventListener('mouseenter', () => isPaused = true);
+      track.addEventListener('mouseleave', () => isPaused = false);
+      track.addEventListener('touchstart', () => { isPaused = true; }, { passive: true });
+      track.addEventListener('touchend', () => {
+        clearTimeout(resumeTimer);
+        resumeTimer = setTimeout(() => isPaused = false, 2000);
+      }, { passive: true });
+
+      let lastT = performance.now();
+      function marqueeLoop(now) {
+        const dt = Math.min(now - lastT, 100);
+        lastT = now;
+        if (!isPaused && !animId && track) {
+          // Slow continuous movement: ~36px per second
+          track.scrollLeft += (36 * dt) / 1000;
+          const half = track.scrollWidth / 2;
+          if (half > 0) {
+            if (track.scrollLeft >= half) {
+              track.scrollLeft -= half;
+            } else if (track.scrollLeft <= 0) {
+              track.scrollLeft += half;
             }
-          });
-          ScrollTrigger.refresh();
+          }
         }
-      });
+        requestAnimationFrame(marqueeLoop);
+      }
+      requestAnimationFrame(marqueeLoop);
+
+      const getScrollAmount = () => {
+        const card = $('.showcase-card', track);
+        const gap = window.innerWidth <= 1024 ? 14 : 24;
+        return card ? (card.offsetWidth + gap) : (window.innerWidth <= 640 ? 224 : 310);
+      };
+
+      function animateScroll(delta) {
+        if (!track) return;
+        isPaused = true;
+        if (animId) cancelAnimationFrame(animId);
+        clearTimeout(resumeTimer);
+
+        const half = track.scrollWidth / 2;
+        if (half > 0) {
+          if (delta < 0 && track.scrollLeft <= 10) {
+            track.scrollLeft += half;
+          } else if (delta > 0 && track.scrollLeft >= half - 10) {
+            track.scrollLeft -= half;
+          }
+        }
+
+        const startPos = track.scrollLeft;
+        const duration = 320;
+        const startTime = performance.now();
+
+        function step(now) {
+          const elapsed = now - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          // Ease out cubic
+          const ease = 1 - Math.pow(1 - progress, 3);
+          let current = startPos + (delta * ease);
+
+          if (half > 0) {
+            if (current >= half) {
+              current -= half;
+            } else if (current < 0) {
+              current += half;
+            }
+          }
+          track.scrollLeft = current;
+
+          if (progress < 1) {
+            animId = requestAnimationFrame(step);
+          } else {
+            animId = null;
+            resumeTimer = setTimeout(() => { isPaused = false; }, 2500);
+          }
+        }
+        animId = requestAnimationFrame(step);
+      }
+
+      const scrollPrev = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        animateScroll(-getScrollAmount());
+      };
+
+      const scrollNext = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        animateScroll(getScrollAmount());
+      };
+
+      if (pBtn && nBtn) {
+        pBtn.addEventListener('click', scrollPrev);
+        nBtn.addEventListener('click', scrollNext);
+      }
     }
   }
 
@@ -277,6 +420,7 @@
 
   /* ---------------- Milestones & visit ---------------- */
   function renderMiles(el) {
+    if (!el) return;
     const m = D.milestones;
     el.innerHTML = `
       <div class="head reveal"><p class="eyebrow amber">Our milestones</p><h2>Recognition that <em>grew in the sun</em></h2></div>
@@ -290,6 +434,7 @@
       </div>`;
   }
   function renderVisit(el) {
+    if (!el) return;
     el.innerHTML = `
       <div class="v-stage">
         <div class="v-img reveal">${A.sceneGreenhouse()}</div>
@@ -317,18 +462,21 @@
       leaf: '<svg viewBox="0 0 24 24"><path d="M5 19C4 9 10 4 20 4c0 10-5 16-15 15zM5 19l8-8"/></svg>',
       heart: '<svg viewBox="0 0 24 24"><path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0112 7.6a4.3 4.3 0 017.5 2.2C19.5 15.4 12 20 12 20z"/></svg>'
     };
-    const pill = [['sun', 'Solar-dried', 'Our dryers run on sunshine. Slow, gentle heat keeps colour, aroma and nutrients intact.'],
-      ['leaf', 'Nothing added', 'No chemicals, colours, fillers or preservatives — just the fruit, vegetable or leaf itself.'],
-      ['heart', 'Farm to family', 'We work with neighbouring farmers and pay fairly, so good food starts with good livelihoods.']];
+    const pill = [
+      ['sun', 'Ancient Tamil Recipes', 'Crafted with authentic multigrain health mix recipes handed down through generations.'],
+      ['leaf', '100% Chemical-Free', 'Zero artificial preservatives, zero refined sugar, and zero additives — pure natural food.'],
+      ['heart', 'From Pettai, Tirunelveli', 'Stone-milled fresh in Tirunelveli and packed hygienically for families across India.']
+    ];
     $('#pillars').innerHTML = pill.map((p, i) => `<div class="pillar reveal" style="--d:${i * .1}s"><div class="ic">${I[p[0]]}</div><h3>${p[1]}</h3><p>${p[2]}</p></div>`).join('');
-    $('#stats').innerHTML = `<div class="in">${[[12, '+', 'Partner farms'], [13, '', 'Powders in range'], [100, '%', 'Natural, always'], [5000, '+', 'Happy kitchens']].map(s => `<div class="reveal"><b data-count="${s[0]}" data-suf="${s[1]}">0${s[1]}</b><span>${s[2]}</span></div>`).join('')}</div>`;
-    $('#timeline').innerHTML = `<p class="eyebrow" style="text-align:center">Our journey</p><h2 class="reveal">A few years of sunshine</h2><div class="tl">${D.more_milestones.map((m, i) => `<div class="reveal" style="--d:${i * .1}s"><b>${m.y}</b><h4>${m.t}</h4><p>${m.d}</p></div>`).join('')}</div>`;
+    $('#stats').innerHTML = `<div class="in">${[[24, '+', 'Grains & Millets'], [100, '%', 'Traditional Tamil Foods'], [0, '%', 'Preservatives or Chemicals'], [5000, '+', 'Happy Families']].map(s => `<div class="reveal"><b data-count="${s[0]}" data-suf="${s[1]}">0${s[1]}</b><span>${s[2]}</span></div>`).join('')}</div>`;
+    $('#timeline').innerHTML = `<p class="eyebrow" style="text-align:center">Our heritage</p><h2 class="reveal">Rooted in Tirunelveli</h2><div class="tl">${D.more_milestones.map((m, i) => `<div class="reveal" style="--d:${i * .1}s"><b>${m.y}</b><h4>${m.t}</h4><p>${m.d}</p></div>`).join('')}</div>`;
     renderMiles($('#milesAbout')); renderVisit($('#visitAbout'));
   }
   function runCounters() {
+    const vh = window.innerHeight || 800;
     $$('[data-count]').forEach(el => {
       if (el.dataset.done) return;
-      const r = el.getBoundingClientRect(); if (r.top > innerHeight || r.bottom < 0) return;
+      const r = el.getBoundingClientRect(); if (r.top > vh || r.bottom < 0) return;
       el.dataset.done = 1;
       const to = +el.dataset.count, suf = el.dataset.suf, t0 = performance.now(), dur = 1600;
       const tick = t => { const k = Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - k, 3); el.textContent = Math.round(to * e).toLocaleString('en-IN') + suf; if (k < 1) requestAnimationFrame(tick); };
@@ -343,19 +491,20 @@
       <div class="f-sun" id="fSun"></div>
       <svg class="f-wave" viewBox="0 0 1440 130" preserveAspectRatio="none" aria-hidden="true"><path class="a" d="M0 60 C240 10 520 100 800 56 S1240 20 1440 54 V130 H0Z"/><path class="b" d="M0 82 C260 34 540 112 820 78 S1240 50 1440 76 V130 H0Z"/></svg>
       <div class="f-body"><div class="f-in">
-        <div class="cta-row"><h2>Bring the sunshine home.</h2><a class="btn btn-amber" href="#products">Shop now ${ICON.arrow}</a></div>
+        <div class="cta-row"><h2>Bring traditional wellness home.</h2><a class="btn btn-amber" href="#products">Shop now ${ICON.arrow}</a></div>
         <div class="f-cols">
-          <div class="f-brand"><span class="lg"><svg viewBox="0 0 64 64" width="34" height="34"><path d="M8 34C13 16 29 14 32 27C35 14 51 16 56 34C45 45 35 40 32 33C29 40 19 45 8 34Z" fill="#6FAE3E"/><path d="M32 27V50" stroke="#F5A623" stroke-width="3.4" stroke-linecap="round"/></svg></span>
-            <p>Natural fruit, vegetable and superfood powders, dried under the sun with no chemicals and no preservatives.</p>${socials()}</div>
+          <div class="f-brand">
+            <span class="lg"><img src="js/assets/logo.png" alt="Hi Suvai" style="width:48px;height:48px;object-fit:contain;border-radius:10px"></span>
+            <p>Hi Suvai offers traditional health mix, sprouted grain porridge, and ancient flours crafted with heritage grains from Tamil Nadu.</p>${socials()}</div>
           <div class="f-col"><h4>Shop</h4><ul>${D.categories.map(c => `<li><a href="#products-${c.key}">${c.name}</a></li>`).join('')}<li><a href="#products">All products</a></li></ul></div>
-          <div class="f-col"><h4>Help</h4><ul>${pol.map(p => `<li><a href="#" data-policy="${p}">${p}</a></li>`).join('')}</ul></div>
+          <div class="f-col"><h4>Help & Policies</h4><ul>${pol.map(p => `<li><a href="#" data-policy="${p}">${p}</a></li>`).join('')}</ul></div>
           <div class="f-col"><h4>Get in touch</h4><ul>
-            <li class="ct"><svg viewBox="0 0 24 24"><path d="M12 22s7-6.2 7-12a7 7 0 10-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg><a href="${D.mapsUrl}" target="_blank" rel="noopener">${D.place}</a></li>
+            <li class="ct"><svg viewBox="0 0 24 24"><path d="M12 22s7-6.2 7-12a7 7 0 10-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg><a href="${D.mapsUrl}" target="_blank" rel="noopener">${D.address}</a></li>
             <li class="ct"><svg viewBox="0 0 24 24"><path d="M6.6 10.8a15 15 0 006.6 6.6l2.2-2.2a1 1 0 011-.25 11 11 0 003.5.56 1 1 0 011 1V20a1 1 0 01-1 1A17 17 0 013 4a1 1 0 011-1h3.5a1 1 0 011 1c0 1.2.2 2.4.56 3.5a1 1 0 01-.25 1z"/></svg><a href="tel:${D.tel}">${D.phone}</a></li>
             <li class="ct"><svg viewBox="0 0 24 24"><path d="M4 20l1.3-4.2A8 8 0 1112 20a8 8 0 01-3.6-.9z"/></svg><a href="https://wa.me/${D.wa}" target="_blank" rel="noopener">Chat on WhatsApp</a></li>
             <li class="ct"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></svg><a href="mailto:${D.email}">${D.email}</a></li></ul></div>
         </div>
-        <div class="f-bottom"><span>© ${new Date().getFullYear()} Ecodry. All rights reserved.</span><span>${D.place}</span></div>
+        <div class="f-bottom"><span>© ${new Date().getFullYear()} Hi Suvai. All rights reserved.</span><span>${D.address}</span></div>
       </div></div>`;
   }
 
@@ -421,13 +570,13 @@
   function openQuick(id) {
     const p = byId(id);
     const img = D.productImages[id] || 'p1.png';
-    openModal(`<div class="qv"><div class="L"><img src="js/assets/${img}" alt="${p.name}" style="width:100%;height:100%;object-fit:cover;border-radius:14px"></div><div class="R">
+    openModal(`<div class="qv"><div class="L"><img src="js/assets/${img}" alt="${p.name}" style="width:100%;height:100%;object-fit:contain;padding:12px;display:block"></div><div class="R">
       <p class="eyebrow">${catName(p.cat)}</p><h2>${p.name}</h2><p class="lead" style="font-size:13px">${p.blurb}</p>
       <div class="pr">${money(p.price)} <small style="font-weight:400;color:var(--muted)">· ${p.weight}</small></div>
       <ul>${p.benefits.map(b => `<li>${b}</li>`).join('')}</ul>${A.nutri(p)}
       <div class="acts"><div class="qty" id="qvQty"><button data-d="-1" aria-label="Decrease">−</button><span>1</span><button data-d="1" aria-label="Increase">+</button></div>
       <button class="add" id="qvAdd" style="padding:12px 20px">${ICON.bag}Add to cart</button>
-      <a class="btn btn-ghost" style="padding:12px 16px" target="_blank" rel="noopener" href="https://wa.me/${D.wa}?text=${encodeURIComponent('Hi Ecodry, I am interested in ' + p.name)}">WhatsApp</a></div></div></div>`);
+      <a class="btn btn-ghost" style="padding:12px 16px" target="_blank" rel="noopener" href="https://wa.me/${D.wa}?text=${encodeURIComponent('Hi Suvai, I am interested in ' + p.name)}">WhatsApp</a></div></div></div>`);
     let q = 1; const span = $('#qvQty span');
     $('#qvQty').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; q = Math.max(1, Math.min(20, q + +b.dataset.d)); span.textContent = q; });
     $('#qvAdd').addEventListener('click', () => { addToCart(id, q); closeAll(); });
@@ -468,7 +617,7 @@
   }
 
   /* ---------------- Router ---------------- */
-  const TITLES = { home: 'Ecodry — Sun-dried fruit, vegetable & superfood powders', products: 'Products — Ecodry', about: 'About — Ecodry' };
+  const TITLES = { home: 'Hi Suvai | Traditional Health Mix & Nutritious Food Products', products: 'Products — Hi Suvai', about: 'About — Hi Suvai' };
   function route() {
     const parts = (location.hash.replace(/^#/, '') || '').split('-');
     let view = ['products', 'about'].includes(parts[0]) ? parts[0] : 'home';
@@ -486,6 +635,10 @@
   /* ---------------- Scroll effects ---------------- */
   let io;
   function observeReveal() {
+    if (typeof IntersectionObserver === 'undefined') {
+      $$('.view.active .reveal, .site-footer .reveal').forEach(el => el.classList.add('in'));
+      return;
+    }
     if (!io) io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { threshold: .12, rootMargin: '0px 0px -6% 0px' });
     $$('.view.active .reveal:not(.in), .site-footer .reveal:not(.in)').forEach(el => io.observe(el));
   }
@@ -494,14 +647,16 @@
     if (tick) return; tick = true;
     requestAnimationFrame(() => {
       tick = false;
-      $('#header').classList.toggle('scrolled', scrollY > 30);
+      const sy = window.scrollY || 0;
+      const vh = window.innerHeight || 800;
+      $('#header')?.classList.toggle('scrolled', sy > 30);
       updateHow();
       $$('.view.active .m-stage').forEach(st => {
-        const r = st.getBoundingClientRect(); const k = (r.top + r.height / 2 - innerHeight / 2) / innerHeight;
+        const r = st.getBoundingClientRect(); const k = (r.top + r.height / 2 - vh / 2) / vh;
         $$('.arch-img', st).forEach(a => a.style.setProperty('--py', (k * 34 * +a.dataset.par).toFixed(1) + 'px'));
       });
-      $$('.view.active .v-img').forEach(v => { const r = v.getBoundingClientRect(); const k = Math.min(1, Math.max(0, 1 - r.top / innerHeight)); v.style.setProperty('--z', (1.02 + k * .08).toFixed(3)); });
-      const f = $('#footer'); if (f) { const r = f.getBoundingClientRect(); const k = Math.min(1, Math.max(0, 1 - r.top / innerHeight)); $('#fSun').style.setProperty('--sy', (70 - k * 90).toFixed(0) + 'px'); }
+      $$('.view.active .v-img').forEach(v => { const r = v.getBoundingClientRect(); const k = Math.min(1, Math.max(0, 1 - r.top / vh)); v.style.setProperty('--z', (1.02 + k * .08).toFixed(3)); });
+      const f = $('#footer'); if (f) { const r = f.getBoundingClientRect(); const k = Math.min(1, Math.max(0, 1 - r.top / vh)); $('#fSun')?.style.setProperty('--sy', (70 - k * 90).toFixed(0) + 'px'); }
       runCounters();
     });
   }
@@ -539,7 +694,13 @@
     $('#cartBtn').onclick = () => { renderCart(); open('#cartOverlay'); };
     $('#searchInput').addEventListener('input', e => drawSearch(e.target.value));
     $('#sortSel').addEventListener('change', e => { shop.sort = e.target.value; renderShop(); });
-    $('#burger').onclick = () => { const o = $('#nav').classList.toggle('open'); $('#burger').setAttribute('aria-expanded', o); };
+    $('#burger').onclick = e => { e.stopPropagation(); const o = $('#nav').classList.toggle('open'); $('#burger').setAttribute('aria-expanded', o); };
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#nav') && !e.target.closest('#burger')) {
+        $('#nav').classList.remove('open');
+        $('#burger').setAttribute('aria-expanded', 'false');
+      }
+    });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeAll(); });
     window.addEventListener('scroll', onScroll, { passive: true });
     window.addEventListener('resize', onScroll);
